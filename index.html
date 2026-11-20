@@ -1,0 +1,736 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Snake">
+<meta name="theme-color" content="#2b3a2b">
+<title>Snake</title>
+<style>
+  :root{--lcd:#9bb77a;--ink:#1c2b1a;--ghost:#8aa86b;--body:#2b3a2b}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+  html,body{margin:0;height:100%;background:var(--body);overflow:hidden;touch-action:none;
+    font-family:"Courier New",monospace;color:var(--ink)}
+  body{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+    padding:env(safe-area-inset-top) 12px env(safe-area-inset-bottom)}
+  .phone{background:#3d4f3d;border-radius:22px;padding:14px;box-shadow:0 8px 24px #0008, inset 0 0 0 2px #4d614d}
+  .screen{background:var(--lcd);border:4px solid #1c2b1a;border-radius:6px;padding:6px;
+    box-shadow:inset 0 0 12px #0004}
+  .hud{display:flex;justify-content:space-between;font-weight:bold;font-size:15px;
+    letter-spacing:1px;padding:0 2px 4px;text-transform:uppercase}
+  .bar{height:6px;margin:0 2px 4px;border:1px solid var(--ink);visibility:hidden}
+  .bar i{display:block;height:100%;background:var(--ink);width:100%}
+  canvas{display:block;background:var(--lcd);border:2px solid var(--ink)}
+  .pad{display:grid;grid-template-columns:80px 198px 80px;align-items:start;justify-content:center;width:100%}
+  .pad button{border:0;font-family:inherit;color:#c5d9ac;padding:0}
+  /* 3D D-pad: one raised plus-shaped piece, centred under the screen */
+  .dpad{position:relative;width:198px;height:198px;filter:drop-shadow(0 7px 6px rgba(0,0,0,.55))}
+  .dpad svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+  .dpad button{position:absolute;width:66px;height:66px;background:transparent;font-size:22px;color:#aab8a2;
+    text-shadow:0 -1px 0 #000,0 1px 0 rgba(255,255,255,.18)}
+  .dpad .up{left:66px;top:0;border-radius:10px 10px 0 0}
+  .dpad .left{left:0;top:66px;border-radius:10px 0 0 10px}
+  .dpad .right{left:132px;top:66px;border-radius:0 10px 10px 0}
+  .dpad .down{left:66px;top:132px;border-radius:0 0 10px 10px}
+  .dpad button:active{background:radial-gradient(circle at 50% 40%,rgba(0,0,0,.42),rgba(0,0,0,.12));box-shadow:inset 0 3px 6px rgba(0,0,0,.55)}
+  .dpad button:active{transform:translateY(1px)}
+  /* actions kept apart from the cross */
+  .padL,.padR{height:198px;display:flex;flex-direction:column;align-items:center}
+  .padL{justify-content:flex-start}.padR{justify-content:space-between}
+  .padL button,.padR button{background:#4d614d;box-shadow:0 3px 0 #1c2b1a}
+  .padL button:active,.padR button:active{transform:translateY(3px);box-shadow:none;background:#5f785f}
+  .pause{width:72px;height:34px;border-radius:999px;font-size:11px;letter-spacing:.5px;font-weight:bold}
+  .ok{width:64px;height:64px;border-radius:50%;font-size:17px;font-weight:bold}
+  .mute{width:52px;height:34px;border-radius:999px;font-size:17px}
+  @media (hover:hover) and (pointer:fine){.pad{display:none}}
+  [hidden]{display:none!important}
+  .tools{display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap}
+  .tbtn{background:#4d614d;color:#c5d9ac;border:0;border-radius:999px;padding:8px 14px;font:bold 13px "Courier New",monospace;
+    box-shadow:0 2px 0 #1c2b1a;letter-spacing:.5px}
+  .tbtn:active{transform:translateY(2px);box-shadow:none}
+  #swatches{display:flex;gap:8px}
+  /* retro mode: toggle + model on the left edge, colours on the right edge, over the phone's shell margins */
+  body.retro .tools{display:contents}
+  body.retro #retroBtn,body.retro #modelBtn{position:fixed;left:max(5px,env(safe-area-inset-left,0px));z-index:6;width:44px;height:44px;padding:0;border-radius:50%;
+    font-size:9px;line-height:1.15;letter-spacing:0;text-align:center;opacity:.92}
+  body.retro #retroBtn{top:56%}
+  body.retro #modelBtn{top:calc(56% + 52px)}
+  body.retro #swatches{position:fixed;right:max(7px,env(safe-area-inset-right,0px));top:calc(56% - 8px);z-index:6;flex-direction:column;gap:9px}
+  .sw{width:26px;height:26px;border-radius:50%;border:2px solid #0006;padding:0;background:var(--sw);
+    box-shadow:inset 0 3px 4px #fff5, inset 0 -3px 4px #0005}
+  .sw[aria-pressed="true"]{outline:3px solid #e8f2d8;outline-offset:2px}
+  .nkwrap{position:relative;flex:none}
+  .nk{position:absolute;left:0;top:0;width:300px;transform-origin:0 0;filter:drop-shadow(0 16px 18px rgba(0,0,0,.6))}
+  .nk img{display:block;width:100%;height:100%;pointer-events:none;-webkit-user-drag:none;}
+  @font-face{font-family:'RetroMark';font-weight:400;font-style:normal;src:url(data:font/woff2;base64,d09GMgABAAAAAAPgAA0AAAAAByAAAAOOAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAG4FKHBgGYABUERAKgwiCZQsOAAE2AiQDGAQgBYROByAbCgbIBAKoM2eR+OitvIWdHOxcf7JfRFD4KT1768Nfjs/SBCYGmtLt+r3GnBTOCZRwlq1Ba2CGgVpL7Koe5M44DQEwE013hPyU8kKMyIzFeuDLyyh9NfAQRUYcqkpUk4wVKjA3iSHI86D2k7VT+zof/PdQKiIgoqNCxBEkiuwHSDeIB1jppQT8KUJenfa5hfenokgkwbiUDsLnoKD904JuzcEtv85JcouwkmOFbrOuLwgxp5j0lExF4iI6aSqRm0mniWmK/CeNnjl+AqNQmGf48v8iGL6Ik3r6Nf0qeahuM6DIw9ojCIHaLAtEZhRgxSjjMoXxzGQO8zQNrn1Yon3UrmlntdPaKZymNSS8vC+CptH1g/5gtF5IzdB4GmqWcSBa8luCHBQa2tlY5yv51fgudrvdgsFx4sYVS4Dor29+avGra3Y6nWbrx/2Sw+PxWLyWuFwurA632z1UdzqdiM0ulyvu8XgEKDO6rMRaapZ8bnueewTBsXn/frOv0VpHFX64/67O22g1eUt1c9tO6a/vb5g76/CApg75CyYtzjgcMbLdn8g1sn+XvvP7HSSrZdwi++sdO17ZHMmO17YdO2JfL/JviX2zY/truyPZ8cq+Y7v9TYs8Xa232erVqcnT6lW7Ta2f7j9drbfb6tVpidPqVbtNrZ9OmnTR3m3JlNyUqblqfpAa7Vwd5bwiT5NmKQdiZvTdG7zf3MYYu15GFxLB/q7XC6tGTElUClRiy9cPXy+vHyEvDFg+vFfd3LUx7EWSz7B/RlP0xO5vGp9+muvqbWpqHf3/onmJ4UsHk8s5DD40ZjZ/bR3d+s28xI05vbgZdkf1FlbpP5Gr384G3WM6g2bTU48BGzIOxEefkcyAssqmXrCVzzc2MYwvWpmIN/dkEoNYLZNpS7FMRzgLZHra0o94D1+BbMopp5gh9KIXZaRRSg7FlLfSnpS9mk9Piigli17MZALTGE0F6eRQRBU57aUZ9GAOGWRRQT4plLKADEoxf1VEIQq96YmKSt+hJqUBRoaO8jMZz4RLV/xaPLSBkrGdv5ga3ZCl8ycKnUmjCwp9UOlNHxRSqUFhDAApclNT2BdWC38OZbTzVZSRByLjRuWjURhNGeVU/QWkXJBGm5feP4/JPCY7kwIZNeqRx8n2JI2iNt+F7iiyB8vJthHKrFpeSQbpeDFBIlYLMqNFgSXHtdXb2LaETIWWSSZrAAA=) format('woff2')}
+  .plate{position:absolute;display:flex;align-items:center;justify-content:center;pointer-events:none;
+    font-family:'RetroMark','Audiowide','Arial Black',Arial,sans-serif;font-weight:400;letter-spacing:3px;text-indent:3px;-webkit-text-stroke:.45px var(--logo,#e9edf3);
+    color:var(--logo,#e9edf3);text-shadow:var(--logosh,0 1px 0 rgba(0,0,0,.55),0 0 2px rgba(0,0,0,.35));white-space:nowrap}
+  .nk[data-model="3310"] .plate{font-size:16px}
+  .nk[data-model="3315"] .plate{font-size:18px;letter-spacing:3px;text-indent:3px}
+  .lcd{position:absolute;background:var(--lcd);border-radius:3px;overflow:hidden;
+    box-shadow:inset 0 0 0 1px rgba(0,0,0,.5)}
+  .lcd.nostat svg.stat{display:none}
+  .g2 .hud,.g2 .bar{display:none}
+  body.g2 .screen canvas{border:0}
+  .g2 .screen{display:flex;align-items:center;justify-content:center}
+  body.g2 .nk[data-model="3315"] .screen.retro,body.g2 .nk[data-model="3310"] .screen.retro{padding:1px}
+  .lcd svg.stat{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none}
+  .screen.retro{border:0;border-radius:0;padding:5px 6px;box-shadow:none;background:transparent;width:100%;height:100%}
+  .screen.retro .hud{font-size:11px;padding:0 0 2px;letter-spacing:.5px}
+  .nk[data-model="3315"] .screen.retro .hud{font-size:9.5px}
+  .nk[data-model="3315"] .screen.retro{padding:5px 15px}
+  .screen.retro .bar{height:4px;margin:0 0 3px}
+  .screen.retro canvas{border:1px solid var(--ink);margin:0 auto}
+  .hit{position:absolute;padding:0;border:0;background:transparent;border-radius:50%;cursor:pointer}
+  .hit::after{content:"";position:absolute;left:var(--il,0);top:var(--it,0);right:var(--ir,0);bottom:var(--ib,0);border-radius:50%}
+  .hit.r::after{border-radius:10px}
+  .hit:active::after{background:rgba(0,0,0,.28)}
+</style>
+</head>
+<body>
+<div class="tools" id="tools">
+  <button class="tbtn" id="retroBtn" aria-pressed="false">Retro mode: off</button>
+  <button class="tbtn" id="modelBtn" hidden>Model: 3310</button>
+  <div id="swatches" hidden></div>
+</div>
+<div class="phone" id="plain">
+  <div class="screen" id="screen">
+    <div class="hud"><span id="score">Score 0000</span><span id="hi">Hi 0000</span></div>
+    <div class="bar" id="bar"><i id="barfill"></i></div>
+    <canvas id="c"></canvas>
+  </div>
+</div>
+<div class="nkwrap" id="nkwrap" hidden>
+ <div class="nk" id="nk" data-model="3310">
+  <img id="nkimg" alt="" draggable="false">
+  <div class="plate" id="plate">RETRO</div>
+  <div class="lcd" id="lcd">
+  </div>
+  <div id="hits"></div>
+ </div>
+</div>
+<div class="pad" id="pad">
+  <div class="padL"><button class="mute" data-d="mute" id="mute">🔊</button></div>
+  <div class="dpad">
+    <svg viewBox="0 0 198 198" aria-hidden="true">
+      <defs>
+        <linearGradient id="dpTop" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4a554a"/><stop offset=".5" stop-color="#2a322a"/><stop offset="1" stop-color="#171c17"/></linearGradient>
+        <linearGradient id="dpEdge" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".55"/><stop offset=".45" stop-color="#fff" stop-opacity=".05"/><stop offset="1" stop-color="#000" stop-opacity=".6"/></linearGradient>
+        <radialGradient id="dpHub" cx=".5" cy=".4" r=".7"><stop offset="0" stop-color="#0d110d"/><stop offset="1" stop-color="#2c352c"/></radialGradient>
+      </defs>
+      <path d="M75,0 H123 Q132,0 132,9 V66 H189 Q198,66 198,75 V123 Q198,132 189,132 H132 V189 Q132,198 123,198 H75 Q66,198 66,189 V132 H9 Q0,132 0,123 V75 Q0,66 9,66 H66 V9 Q66,0 75,0 Z" transform="translate(0 6)" fill="#080b08"/>
+      <path d="M75,0 H123 Q132,0 132,9 V66 H189 Q198,66 198,75 V123 Q198,132 189,132 H132 V189 Q132,198 123,198 H75 Q66,198 66,189 V132 H9 Q0,132 0,123 V75 Q0,66 9,66 H66 V9 Q66,0 75,0 Z" fill="url(#dpTop)"/>
+      <path d="M75,0 H123 Q132,0 132,9 V66 H189 Q198,66 198,75 V123 Q198,132 189,132 H132 V189 Q132,198 123,198 H75 Q66,198 66,189 V132 H9 Q0,132 0,123 V75 Q0,66 9,66 H66 V9 Q66,0 75,0 Z" fill="none" stroke="url(#dpEdge)" stroke-width="2.4"/>
+      <path d="M75,0 H123 Q132,0 132,9 V66 H189 Q198,66 198,75 V123 Q198,132 189,132 H132 V189 Q132,198 123,198 H75 Q66,198 66,189 V132 H9 Q0,132 0,123 V75 Q0,66 9,66 H66 V9 Q66,0 75,0 Z" transform="translate(3 3) scale(.9697)" fill="none" stroke="#000" stroke-opacity=".22" stroke-width="1.5"/>
+      <circle cx="99" cy="99" r="23" fill="url(#dpHub)"/>
+      <circle cx="99" cy="99" r="23" fill="none" stroke="#fff" stroke-opacity=".12" stroke-width="1.4" transform="translate(0 1.2)"/>
+    </svg>
+    <button class="up" data-d="up" aria-label="Up">▲</button>
+    <button class="left" data-d="left" aria-label="Left">◀</button>
+    <button class="right" data-d="right" aria-label="Right">▶</button>
+    <button class="down" data-d="down" aria-label="Down">▼</button>
+  </div>
+  <div class="padR">
+    <button class="pause" data-d="pause" id="pauseBtn">❚❚ PAUSE</button>
+    <button class="ok" data-d="ok">OK</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  const COLS = 20, ROWS = 14;
+  const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+  const scoreEl = document.getElementById('score'), hiEl = document.getElementById('hi');
+  const bar = document.getElementById('bar'), barFill = document.getElementById('barfill');
+  const muteBtn = document.getElementById('mute'), pauseBtn = document.getElementById('pauseBtn');
+  const tools = document.getElementById('tools'), modelBtn = document.getElementById('modelBtn'), retroBtn = document.getElementById('retroBtn'), swatches = document.getElementById('swatches');
+  const plain = document.getElementById('plain'), padEl = document.getElementById('pad'), screenEl = document.getElementById('screen');
+  const nkwrap = document.getElementById('nkwrap'), nk = document.getElementById('nk'), lcd = document.getElementById('lcd');
+  // Photo-based phones. Coordinates are in source-image pixels (w x h); lcd = [x,y,w,h]; cv = game canvas size inside the LCD.
+  const MODELS = {
+    '3310': {w:250, h:570, lcd:[41,151,169,119], cv:[160,112], pad:18.5, ic:{L:[7.2,77], R:[162,77]}, bars:{L:[[7.2,68,2,7.2],[7.2,59.3,3,7.2],[7.2,50.6,4,7.2],[7.2,42,5,7.2]], R:[[162,68,2,7.2],[162,59.3,3,7.2],[162,50.6,4,7.2],[162,42,5,7.2]]}, plate:[126,116,76,19],
+      keys:[['up',125,395,46,25,[9,7,9,7]],['left',57,427,46,28,[9,7,9,7]],['right',195,426,46,28,[9,7,9,7]],
+            ['down',125,475,46,25,[9,7,9,7]],['mute',62,505,46,28],['retro',190,505,46,28],
+            ['back',65,328,36,36],['ok',127,305,88,20],['up',178,326,52,18],['down',172,347,52,18]]},
+    '3315': {w:776, h:1762, lcd:[136,405,526,372], cv:[160,112], pad:8, ic:{L:[0,0], R:[0,0]}, bars:{L:[],R:[]}, plate:[414,307,240,52], rect:true,
+      keys:[['up',401,1185,230,84,[8,12,8,10]],['left',168,1284,172,112,[8,8,12,8]],['right',606,1288,150,108,[8,8,8,8]],
+            ['down',406,1455,230,88,[8,10,8,12]],['mute',186,1566,146,88],['retro',563,1563,145,84],
+            ['back',191,947,130,120],['ok',393,904,240,56],['up',593,968,141,95],['down',491,1042,150,88]]},
+  };
+  // Five pre-rendered cover colours per phone: img/<model>-<colour>.webp
+  const COLORWAYS = {
+    blue:   {name:'Blue',   sw:{'3310':'#2a3760','3315':'#1f4f9e'}, logo:{'3310':['#e9edf3','0 1px 0 rgba(0,0,0,.55),0 0 2px rgba(0,0,0,.35)'],'3315':['#2d3136','0 1px 0 rgba(255,255,255,.6)']}},
+    grey:   {name:'Grey',   sw:{'3310':'#8a8d95','3315':'#8d8f94'}, logo:{'3310':['#f4f5f7','0 1px 0 rgba(0,0,0,.5),0 0 2px rgba(0,0,0,.3)'],'3315':['#2d3136','0 1px 0 rgba(255,255,255,.6)']}},
+    red:    {name:'Red',    sw:{'3310':'#b3262e','3315':'#9b1f2e'}, logo:{'3310':['#f7eaea','0 1px 0 rgba(0,0,0,.5),0 0 2px rgba(0,0,0,.3)'],'3315':['#2d3136','0 1px 0 rgba(255,255,255,.6)']}},
+    yellow: {name:'Yellow', sw:{'3310':'#d9b21f','3315':'#e0b020'}, logo:{'3310':['#3a3510','0 1px 0 rgba(255,255,255,.5)'],'3315':['#2d3136','0 1px 0 rgba(255,255,255,.6)']}},
+    green:  {name:'Green',  sw:{'3310':'#3a8a4a','3315':'#2f9a4a'}, logo:{'3310':['#ecf6ec','0 1px 0 rgba(0,0,0,.5),0 0 2px rgba(0,0,0,.3)'],'3315':['#2d3136','0 1px 0 rgba(255,255,255,.6)']}},
+  };
+  let model = '3310', nkH = 684;
+  let retro = false, rcolor = 'blue', scale = 1;
+  try { const r = JSON.parse(localStorage.getItem('snake-retro') || '{}'); retro = !!r.on; if (COLORWAYS[r.color]) rcolor = r.color; if (r.model === '3315') model = '3315'; } catch(e){}
+  let INK = '#1c2b1a', GHOST = '#8aa86b';
+  const THEMES = {1: {lcd:'#9bb77a', ink:'#1c2b1a', ghost:'#8aa86b'},      // Snake I: green-grey LCD
+                  2: {lcd:'#bcd91e', ink:'#1b2205', ghost:'#a8c41c'}};     // Snake II: backlit lime LCD
+  const SPLASH = '80,64,AAAAAAAAAAAAAAAGAAAAAABwAAAAHwwODBwB+AB4AD8cHh4cDfwHhAA/PB4ePAz8CAQAf3wePnwc/PgEAH98Pj58fMOABAH+fDx+HH3CAAQB+H48fhx7AgAIAfh/PP8ccwIGeAPgfzznZ/MCRmADwH894ff3A8BgB4AfPeP3x/HAYAeHHf3n54PAQGAHj53954eDwEBgB/+d/f+Hw8xAYAf/nPv/n/PcQHgDx5z78d5z/EB8AAec88HeM/hAZAAHnHfB3jP4QEQAP3xHwAYTwEQEAH9wAADmAQDABAB+AAAAgAAAgAwH+AACZmfAAgHwA/gAAAAgQAIBgAPwAASYkEACB4ABwAAHARBAAnwAAAAADQHgEAPwAAAAAAwAABABwAAAAB/+BAcQAcAAAAHAMAAADAAAAAAGFV/4B/8AAAAAFUAIBH8AAAAAAGAf+gHF1UAAAABguAABhE/AAAAAVfAF/YRP/AAAAaEABTUEcAMEAAFWAAMxGEAAkQAAHgAAIBgAABgAAhwAAGQRAAB4AAPcAACoYg/4JEAfgcAAEMQIBCZAFSngACCEEAAuYCBCEABBBEH2PlAqQrAAAgBDtD4AP2fwAIYQRxw/AGWeFAEMUQx/1xhSVUMCGdEAAAmQGoBrABHgCAALkD+AfwQx5E0AF5AAfUAEJ+RFwO+QAB2VCC/xED8XkAAFvwgj+QMAD5A/5f0IGABMwPWQP+Q0CAAABIAskH/2FAgH/wQ/LBB/8EgGAAAAABngP/4AAwAABMDgAB/+AAEAAAQgAAAf//8BAAAEPwfwB///wMAAcQB/wAAH//B//wP/4AAAAAAAAAAAAAAAAAAAAAAAAAAAAA==';
+  // 5x7 dot-matrix font
+  const FONT = {
+    '0':'01110 10001 10011 10101 11001 10001 01110','1':'00100 01100 00100 00100 00100 00100 01110','2':'01110 10001 00001 00010 00100 01000 11111',
+    '3':'11110 00001 00001 01110 00001 00001 11110','4':'00010 00110 01010 10010 11111 00010 00010','5':'11111 10000 11110 00001 00001 10001 01110',
+    '6':'00110 01000 10000 11110 10001 10001 01110','7':'11111 00001 00010 00100 01000 01000 01000','8':'01110 10001 10001 01110 10001 10001 01110',
+    '9':'01110 10001 10001 01111 00001 00010 01100',
+    A:'01110 10001 10001 11111 10001 10001 10001',B:'11110 10001 10001 11110 10001 10001 11110',C:'01110 10001 10000 10000 10000 10001 01110',
+    D:'11110 10001 10001 10001 10001 10001 11110',E:'11111 10000 10000 11110 10000 10000 11111',F:'11111 10000 10000 11110 10000 10000 10000',
+    G:'01110 10001 10000 10111 10001 10001 01111',H:'10001 10001 10001 11111 10001 10001 10001',I:'01110 00100 00100 00100 00100 00100 01110',
+    J:'00111 00010 00010 00010 00010 10010 01100',K:'10001 10010 10100 11000 10100 10010 10001',L:'10000 10000 10000 10000 10000 10000 11111',
+    M:'10001 11011 10101 10101 10001 10001 10001',N:'10001 11001 10101 10011 10001 10001 10001',O:'01110 10001 10001 10001 10001 10001 01110',
+    P:'11110 10001 10001 11110 10000 10000 10000',Q:'01110 10001 10001 10001 10101 10010 01101',R:'11110 10001 10001 11110 10100 10010 10001',
+    S:'01111 10000 10000 01110 00001 00001 11110',T:'11111 00100 00100 00100 00100 00100 00100',U:'10001 10001 10001 10001 10001 10001 01110',
+    V:'10001 10001 10001 10001 10001 01010 00100',W:'10001 10001 10001 10101 10101 11011 10001',X:'10001 10001 01010 00100 01010 10001 10001',
+    Y:'10001 10001 01010 00100 00100 00100 00100',Z:'11111 00001 00010 00100 01000 10000 11111',
+    '<':'00010 00100 01000 10000 01000 00100 00010','>':'01000 00100 00010 00001 00010 00100 01000','=':'00000 00000 11111 00000 11111 00000 00000',
+    '-':'00000 00000 00000 11111 00000 00000 00000','.':'00000 00000 00000 00000 00000 01100 01100',' ':'00000 00000 00000 00000 00000 00000 00000'};
+  for (const k in FONT) FONT[k] = FONT[k].split(' ');
+  const FONT3 = {'0':'111 101 101 101 111','1':'010 110 010 010 111','2':'111 001 111 100 111','3':'111 001 111 001 111','4':'101 101 111 001 001',
+    '5':'111 100 111 001 111','6':'111 100 111 101 111','7':'111 001 001 010 010','8':'111 101 111 101 111','9':'111 101 111 001 111'};
+  for (const k in FONT3) FONT3[k] = FONT3[k].split(' ');
+  const DIRS = {up:[0,-1], down:[0,1], left:[-1,0], right:[1,0]};
+  const BONUS_MS = 6000, BONUS_EVERY = 5;
+
+  // ---------- mazes (Snake II levels 0-8) ----------
+  const LEVELS = [
+    () => [],
+    (w) => { for (let i = 0; i < 4; i++) for (const [x,y] of [[i,0],[0,i],[19-i,0],[19,i],[i,13],[0,13-i],[19-i,13],[19,13-i]]) w(x,y); },
+    (w) => { for (let x = 4; x <= 15; x++) { w(x,3); w(x,10); } },
+    (w) => { for (let y = 0; y <= 4; y++) w(10,y); for (let y = 9; y <= 13; y++) w(10,y); for (let y = 3; y <= 10; y++) w(15,y); },
+    (w) => { for (let x = 12; x <= 17; x++) w(x,7); for (let y = 2; y <= 11; y++) w(14,y); },
+    (w) => { for (let x = 3; x <= 16; x++) { if (x !== 9 && x !== 10) { w(x,2); w(x,11); } } for (let y = 2; y <= 11; y++) { if (y !== 6 && y !== 7) { w(3,y); w(16,y); } } },
+    (w) => { for (let i = 0; i < 10; i++) w(i + 5, i + 2); for (let i = 0; i < 10; i++) w(14 - i, 13 - i); },
+    (w) => { for (const x of [3,7,11,15]) for (const y of [2,5,8,11]) w(x,y); },
+    (w) => { for (let y = 0; y <= 9; y++) w(12,y); for (let y = 4; y <= 13; y++) w(16,y); for (let x = 2; x <= 8; x++) w(x,3); },
+  ];
+  function buildWalls(level) {
+    const g = Array.from({length: ROWS}, () => Array(COLS).fill(false));
+    LEVELS[level]((x, y) => { if (x >= 0 && x < COLS && y >= 0 && y < ROWS) g[y][x] = true; });
+    for (let y = 6; y <= 8; y++) for (let x = 0; x <= 9; x++) g[y][x] = false;   // keep start lane clear
+    return g;
+  }
+
+  // ---------- sound (Web Audio beeps, square wave like a phone buzzer) ----------
+  let actx = null, muted = false;
+  try { muted = localStorage.getItem('snake-mute') === '1'; } catch(e){}
+  function audio() {
+    if (!actx) { const A = window.AudioContext || window.webkitAudioContext; if (A) actx = new A(); }
+    if (actx && actx.state === 'suspended') actx.resume();
+    return actx;
+  }
+  function beep(freq, dur, delay = 0, vol = 0.08) {
+    if (muted) return; const c = audio(); if (!c) return;
+    const t = c.currentTime + delay, o = c.createOscillator(), g = c.createGain();
+    o.type = 'square'; o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(c.destination); o.start(t); o.stop(t + dur + 0.02);
+  }
+  const sfx = {
+    menu:   () => beep(660, 0.05),
+    start:  () => { beep(523,.08); beep(659,.08,.09); beep(784,.12,.18); },
+    eat:    () => { beep(880,.05); beep(1175,.07,.05); },
+    spawn:  () => { beep(1568,.06); beep(1976,.06,.08); beep(1568,.06,.16); },
+    bonus:  () => { [784,988,1175,1568].forEach((f,i) => beep(f,.07,i*.065)); },
+    expire: () => beep(300,.15),
+    pause:  () => beep(440,.07),
+    die:    () => { [440,370,311,247,196].forEach((f,i) => beep(f,.16,i*.15,.1)); },
+  };
+  function setMute(m) {
+    muted = m; muteBtn.textContent = m ? '🔇' : '🔊';
+    try { localStorage.setItem('snake-mute', m ? '1' : '0'); } catch(e){}
+    if (!m) sfx.menu();
+  }
+  muteBtn.textContent = muted ? '🔇' : '🔊';
+
+  // ---------- state ----------
+  let cell, snake, dir, queue, food, bonus, bonusLeft, score, eaten, grow, walls, mouthTicks = 0, deathShift = [0, 0], mice = 0, mouseFace = true, bulges = [];
+  let state = 'title', timer, blink = 0;
+  let game = 2, level = 0, speed = 5, row = 0;   // menu selections (game 1 = classic Snake, 2 = Snake II)
+  let hi = {};
+  try { hi = JSON.parse(localStorage.getItem('snake3-hi') || '{}'); } catch(e){}
+  const EDGE_DEFAULT = {1: true, 2: false};          // Snake I: border walls kill; Snake II: the snake wraps around
+  let edge = {1: true, 2: false};                    // WALLS setting per game (true = hitting the border ends the game)
+  const hiKey = () => (game === 1 ? 'S1-' + speed : level + '-' + speed) + (edge[game] !== EDGE_DEFAULT[game] ? (edge[game] ? '-W' : '-N') : '');
+  const curHi = () => hi[hiKey()] || 0;
+  try { const m = JSON.parse(localStorage.getItem('snake2-menu') || '{}'); if (m.level != null) { level = m.level; speed = m.speed; if (m.game) game = m.game; } if (m.edge) edge = {1: !!m.edge[1], 2: !!m.edge[2]}; } catch(e){}
+
+  const pad4 = n => String(n).padStart(4, '0');
+  const interval = () => 230 - (speed - 1) * 19;               // speed 1..9 -> 230ms..78ms
+  const pts = () => 1;                                 // each pellet is worth 1 point (bonus critter: 1-10)
+  // ----- reception / battery indicators: real device values where the browser exposes them -----
+  let sigLevel = 1, batLevel = 1;                     // 0..1, default full when the browser can't tell
+  const segs = (lvl, n) => lvl <= 0 ? 0 : Math.max(1, Math.min(n, Math.ceil(lvl * n - 0.001)));
+  function renderStatus() { lcd.querySelectorAll('svg.stat').forEach(e => e.remove()); draw(); }   // meters live on the dot-matrix canvas
+  async function initDeviceStatus() {
+    try {                                              // Battery Status API (Chrome/Android; not Safari/iOS)
+      if (navigator.getBattery) {
+        const b = await navigator.getBattery();
+        const up = () => { batLevel = b.level; renderStatus(); };
+        up(); b.addEventListener('levelchange', up);
+      }
+    } catch (e) {}
+    try {                                              // Network Information API: connection quality as the reception stand-in
+      const c = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+      const up = () => {
+        let l = 1;
+        if (navigator.onLine === false) l = 0;
+        else if (c) l = {'slow-2g': .2, '2g': .35, '3g': .6}[c.effectiveType] ?? (c.downlink ? Math.min(1, .7 + c.downlink / 30) : 1);
+        sigLevel = l; renderStatus();
+      };
+      up(); addEventListener('online', up); addEventListener('offline', up); if (c && c.addEventListener) c.addEventListener('change', up);
+    } catch (e) {}
+  }
+  function applyTheme() {
+    const t = THEMES[state === 'splash' ? 2 : game]; INK = t.ink; GHOST = t.ghost; splashCv = null;
+    document.documentElement.style.setProperty('--lcd', t.lcd); document.documentElement.style.setProperty('--ink', t.ink);
+    document.body.classList.toggle('g2', dots());
+  }
+  function hud() { scoreEl.textContent = 'Score ' + pad4(score || 0); hiEl.textContent = 'Hi ' + pad4(curHi()); }
+
+  function fit() {
+    const th = retro ? 0 : (tools.offsetHeight || 40);                 // in retro mode the controls float at the sides, so the phone gets the whole height
+    scale = Math.max(0.3, Math.min((innerWidth + (retro ? 8 : -32)) / 300, (innerHeight - th - (retro ? 12 : 24)) / nkH, 1.5));
+    nkwrap.style.width = 300 * scale + 'px'; nkwrap.style.height = nkH * scale + 'px';
+    nk.style.transform = `scale(${scale})`;
+  }
+  function applyModel() {
+    const m = MODELS[model], k = 300 / m.w; nkH = Math.round(m.h * k);
+    nk.dataset.model = model; nk.style.height = nkH + 'px'; 
+    const px = (v) => (v * k) + 'px';
+    Object.assign(lcd.style, {left: px(m.lcd[0]), top: px(m.lcd[1]), width: px(m.lcd[2]), height: px(m.lcd[3])});
+    const pl = document.getElementById('plate'), [cx, cy, pw, ph] = m.plate;
+    Object.assign(pl.style, {left: px(cx - pw/2), top: px(cy - ph/2), width: px(pw), height: px(ph)});
+    const hits = document.getElementById('hits'); hits.textContent = '';
+    [...m.keys].sort((a, b) => (a[5] ? 1 : 0) - (b[5] ? 1 : 0)).forEach(([d, cx, cy, w, h, ex = [0, 0, 0, 0]]) => {   // enlarged steering keys go on top
+      const b = document.createElement('button'); b.className = 'hit' + (m.rect && d !== 'back' && d !== 'ok' ? ' r' : ''); b.dataset.d = d;
+      b.setAttribute('aria-label', d);
+      Object.assign(b.style, {left: px(cx - w/2 - ex[0]), top: px(cy - h/2 - ex[1]), width: px(w + ex[0] + ex[2]), height: px(h + ex[1] + ex[3])});
+      ['--il', '--it', '--ir', '--ib'].forEach((v, i) => b.style.setProperty(v, px(ex[i])));   // pressed highlight stays on the real key
+      b.addEventListener('pointerdown', e => { e.preventDefault(); action(d); });
+      hits.appendChild(b);
+    });
+    modelBtn.innerHTML = retro ? 'MODEL<br>' + model : 'Model: ' + model;
+  }
+  const dots = () => true;                                      // both games are drawn on the dot-matrix screen
+  const DW = 103, DH = 68, GX = 2, GY = 10, CW = 5, CH = 4;   // Snake II dot grid, playfield origin, cell size in dots
+  let dp = 4, splashCv = null;
+  function size() {
+    if (dots()) {                                       // dot-matrix canvas: integer canvas pixels per dot
+      const dpr = window.devicePixelRatio || 1;
+      if (retro) {
+        fit(); const m = MODELS[model], k = 300 / m.w;
+        const aw = m.lcd[2] * k - 2, ah = m.lcd[3] * k - 2;
+        const f = Math.min(aw / DW, ah / DH) * scale * dpr;                       // ideal canvas px per dot
+        dp = Math.max(2, Math.round(f));
+        if (DW * dp / (scale * dpr) > aw + 2 || DH * dp / (scale * dpr) > ah + 2) dp = Math.max(2, Math.floor(f));     // only round up when it still fits the LCD
+        cv.style.width = DW * dp / (scale * dpr) + 'px'; cv.style.height = DH * dp / (scale * dpr) + 'px';
+      } else {
+        const maxW = Math.min(innerWidth - 90, 560), maxH = innerHeight - 370;
+        dp = Math.max(2, Math.floor(Math.min(maxW / DW, maxH / DH) * dpr));
+        cv.style.width = DW * dp / dpr + 'px'; cv.style.height = DH * dp / dpr + 'px';
+      }
+      cv.width = DW * dp; cv.height = DH * dp; cell = dp * CW; draw(); return;
+    }
+    cv.style.width = cv.style.height = '';
+    if (retro) {
+      fit();
+      const m = MODELS[model];
+      cell = Math.max(6, Math.round(m.cv[0] / COLS * scale * (window.devicePixelRatio || 1)));
+      cv.width = COLS * cell; cv.height = ROWS * cell;
+      cv.style.width = m.cv[0] + 'px'; cv.style.height = m.cv[1] + 'px';
+    } else {
+      const maxW = Math.min(innerWidth - 70, 560), maxH = innerHeight - 370;
+      cell = Math.max(10, Math.floor(Math.min(maxW / COLS, maxH / ROWS)));
+      cv.width = COLS * cell; cv.height = ROWS * cell; cv.style.width = cv.style.height = '';
+    }
+    draw();
+  }
+  function setColor(name) {
+    rcolor = name; document.getElementById('nkimg').src = `img/${model}-${name}.webp`;
+    swatches.querySelectorAll('.sw').forEach(b => b.style.setProperty('--sw', COLORWAYS[b.dataset.color].sw[model]));
+    swatches.querySelectorAll('.sw').forEach(b => b.setAttribute('aria-pressed', b.dataset.color === name));
+    const lg = COLORWAYS[name].logo[model]; nk.style.setProperty('--logo', lg[0]); nk.style.setProperty('--logosh', lg[1]);
+    saveRetro();
+  }
+  function saveRetro() { try { localStorage.setItem('snake-retro', JSON.stringify({on: retro, color: rcolor, model})); } catch(e){} }
+  function applyRetro(on) {
+    retro = on; document.body.classList.toggle('retro', on);
+    plain.hidden = on; padEl.hidden = on; nkwrap.hidden = !on; swatches.hidden = !on; modelBtn.hidden = !on;
+    retroBtn.setAttribute('aria-pressed', on); retroBtn.innerHTML = on ? 'RETRO<br>ON' : 'Retro mode: off';
+    screenEl.classList.toggle('retro', on);
+    (on ? lcd : plain).appendChild(screenEl);
+    document.documentElement.style.setProperty('--body', on ? '#1b231b' : '#2b3a2b');
+    if (on && state !== 'play' && state !== 'pause') { state = 'splash'; applyTheme(); }      // entering retro mode shows the start screen
+    applyModel(); saveRetro(); size();
+  }
+  Object.entries(COLORWAYS).forEach(([k, c]) => {
+    const b = document.createElement('button'); b.className = 'sw'; b.dataset.color = k;
+    b.style.setProperty('--sw', c.sw['3310']); b.title = c.name; b.setAttribute('aria-label', c.name + ' cover');
+    b.addEventListener('click', () => { setColor(k); sfx.menu(); }); swatches.appendChild(b);
+  });
+  modelBtn.addEventListener('click', () => { model = model === '3310' ? '3315' : '3310'; applyModel(); setColor(rcolor); size(); sfx.menu(); });
+  retroBtn.addEventListener('click', () => { audio(); applyRetro(!retro); sfx.menu(); });
+
+  function isFree(p) {
+    return !walls[p.y][p.x] && !snake.some(s => s.x === p.x && s.y === p.y) &&
+      !(food && food.x === p.x && food.y === p.y) && !(bonus && bonus.x === p.x && bonus.y === p.y);
+  }
+  function randFree() {
+    let p, n = 0;
+    do { p = {x: Math.floor(Math.random()*COLS), y: Math.floor(Math.random()*ROWS)}; } while (!isFree(p) && ++n < 500);
+    return p;
+  }
+
+  function reset() {
+    walls = buildWalls(game === 2 ? level : 0); wallDots = null;
+    snake = [{x:6,y:7},{x:5,y:7},{x:4,y:7}];
+    dir = 'right'; queue = []; score = 0; eaten = 0; grow = 0; bulges = []; bonus = null; food = null; mouthTicks = 0; deathShift = [0, 0]; mice = 0;
+    food = randFree(); setBar(); hud();
+  }
+  function setBar() {
+    if (bonus) { bar.style.visibility = 'visible'; barFill.style.width = Math.max(0, bonusLeft / BONUS_MS * 100) + '%'; }
+    else bar.style.visibility = 'hidden';
+  }
+
+  function start() {
+    try { localStorage.setItem('snake2-menu', JSON.stringify({game, level, speed, edge})); } catch(e){}
+    reset(); state = 'play'; sfx.start();
+    clearInterval(timer); timer = setInterval(tick, interval()); draw();
+  }
+  function togglePause() {
+    if (state === 'play') { state = 'pause'; clearInterval(timer); sfx.pause(); draw(); }
+    else if (state === 'pause') { state = 'play'; sfx.pause(); clearInterval(timer); timer = setInterval(tick, interval()); draw(); }
+  }
+
+  // ---------- input ----------
+  function action(d) {
+    audio();
+    if (d === 'mute') return setMute(!muted);
+    if (d === 'retro') { applyRetro(!retro); return sfx.menu(); }
+    if (d === 'pause') {                                      // plain version: only the Pause button (or P) pauses
+      if (!retro && (state === 'play' || state === 'pause')) togglePause();
+      return;
+    }
+    if (d === 'back') {
+      if (state === 'play') { if (retro) togglePause(); return; }   // retro phone: C pauses
+      if (state === 'splash') return;
+      clearInterval(timer); state = state === 'title' ? 'splash' : 'title'; bonus = null; setBar(); hud(); sfx.menu();
+      if (state === 'splash') { applyTheme(); return size(); }
+      return draw();
+    }
+    if (state === 'splash') { state = 'title'; applyTheme(); sfx.menu(); return size(); }          // select / any key -> menu
+    if (state === 'title') {
+      if (d === 'ok') return start();
+      const rows = game === 2 ? [0, 1, 2, 3] : [0, 2, 3];    // 0 = game, 1 = level (Snake II only), 2 = speed, 3 = walls
+      if (d === 'up' || d === 'down') {
+        const i = rows.indexOf(row), k = d === 'down' ? 1 : -1;
+        row = rows[(i + k + rows.length) % rows.length]; sfx.menu();
+      } else {
+        const k = d === 'right' ? 1 : -1;
+        if (row === 0) game = game === 1 ? 2 : 1;
+        else if (row === 1) level = (level + k + 9) % 9;
+        else if (row === 3) edge[game] = !edge[game];
+        else speed = ((speed - 1 + k + 9) % 9) + 1;
+        sfx.menu(); hud();
+        if (row === 0) { applyTheme(); return size(); }
+      }
+      return draw();
+    }
+    if (state === 'over') { if (d === 'ok' || DIRS[d]) { state = 'title'; bar.style.visibility = 'hidden'; hud(); draw(); } return; }
+    if (state === 'pause') return togglePause();               // any key resumes
+    if (d === 'ok') return;                                    // OK / navi never pauses
+    const last = queue.length ? queue[queue.length-1] : dir;
+    const a = DIRS[last], b = DIRS[d];
+    if (a[0] + b[0] === 0 && a[1] + b[1] === 0) return;     // no instant reverse
+    if (d !== last && queue.length < 3) queue.push(d);
+  }
+  const KEYS = {ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right',w:'up',s:'down',a:'left',d:'right',
+    '8':'up','2':'down','4':'left','6':'right',Enter:'ok',' ':'ok',p:'pause',m:'mute',r:'retro',c:'back',Escape:'back','*':'mute'};
+  addEventListener('keydown', e => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const d = KEYS[e.key]; if (!d) return;
+    e.preventDefault(); if (!e.repeat) action(d);
+  });
+  document.querySelectorAll('.pad button').forEach(b =>
+    b.addEventListener('pointerdown', e => { e.preventDefault(); action(b.dataset.d); }));
+  let t0 = null;
+  addEventListener('touchstart', e => { if (e.target.closest('.pad,.tools') || (e.target.closest('.nk') && !e.target.closest('.lcd'))) return; const t = e.touches[0]; t0 = {x:t.clientX, y:t.clientY}; }, {passive:true});
+  addEventListener('touchend', e => {
+    if (!t0) return; const t = e.changedTouches[0];
+    const dx = t.clientX - t0.x, dy = t.clientY - t0.y; t0 = null;
+    if (Math.abs(dx) < 24 && Math.abs(dy) < 24) return action('ok');
+    action(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'));
+  }, {passive:true});
+  addEventListener('touchmove', e => e.preventDefault(), {passive:false});
+  addEventListener('resize', size);
+  document.addEventListener('visibilitychange', () => { if (document.hidden && state === 'play') togglePause(); });
+
+  // ---------- game loop ----------
+  function tick() {
+    if (mouthTicks > 0) mouthTicks--;
+    if (queue.length) dir = queue.shift();
+    const [dx, dy] = DIRS[dir];
+    // Snake II: the snake passes through the screen edges and reappears on the other side
+    let hx = snake[0].x + dx, hy = snake[0].y + dy;
+    if (edge[game]) { if (hx < 0 || hx >= COLS || hy < 0 || hy >= ROWS) { deathShift = [dx, dy]; return gameOver(); } }   // the snake is drawn touching the wall it hit
+    //   // walls on: hitting the border ends the game
+    else { hx = (hx + COLS) % COLS; hy = (hy + ROWS) % ROWS; }
+    const head = {x: hx, y: hy};
+    const willGrow = game === 2 ? bulges.some(b => b + 1 >= snake.length) : grow > 0;   // Snake II: a swallowed item reaches the tail this tick; Snake I: just grows
+    const body = snake.slice(0, snake.length - (willGrow ? 0 : 1));
+    if (walls[head.y][head.x] || body.some(s => s.x === head.x && s.y === head.y)) return gameOver();
+    snake.unshift(head);
+    if (game === 2) bulges = bulges.map(b => b + 1);                // Snake II: every bulge moves one segment towards the tail
+
+    let ate = false;
+    if (head.x === food.x && head.y === food.y) {
+      ate = true; score += pts(); if (game === 2) bulges.push(0); else grow++; eaten++;
+      food = null; food = randFree(); sfx.eat();
+      if (game === 2 && eaten % BONUS_EVERY === 0 && !bonus) { bonus = randFree(); bonusLeft = BONUS_MS; mouseFace = Math.random() < 0.5; sfx.spawn(); }
+    } else if (bonus && head.x === bonus.x && head.y === bonus.y) {
+      ate = true; score += 2; bulges.push(0, -1); mice++;          // a mouse: 2 points, two bulges (2 extra body segments), and it is counted
+      bonus = null; sfx.bonus();
+    }
+    if (ate) mouthTicks = 2;                         // keep the mouth open for a moment after eating
+    if (bonus) {
+      bonusLeft -= interval();
+      if (bonusLeft <= 0) { bonus = null; sfx.expire(); }
+      else if (Math.floor(bonusLeft / 500) !== Math.floor((bonusLeft + interval()) / 500)) beep(2093, .02, 0, .03);
+    }
+    if (ate && score > curHi()) { hi[hiKey()] = score; try { localStorage.setItem('snake3-hi', JSON.stringify(hi)); } catch(e){} }
+    if (game === 2) {
+      const at = bulges.findIndex(b => b >= snake.length - 1);
+      if (at >= 0) bulges.splice(at, 1); else snake.pop();          // the bulge reached the tail: the snake gets longer
+    } else if (grow > 0) grow--; else snake.pop();                   // Snake I: grows right away
+    hud(); setBar(); draw();
+  }
+  function gameOver() {
+    clearInterval(timer); state = 'over'; sfx.die(); draw();
+    if (navigator.vibrate) navigator.vibrate(150);
+  }
+
+  // ---------- drawing ----------
+  function block(x, y) {
+    const g = Math.max(1, Math.round(cell / 10));
+    ctx.fillStyle = INK; ctx.fillRect(x*cell + g, y*cell + g, cell - g*2, cell - g*2);
+  }
+  function text(str, y, sz, x = cv.width / 2, align = 'center') {
+    ctx.fillStyle = INK; ctx.font = `bold ${sz}px "Courier New",monospace`;
+    ctx.textAlign = align; ctx.fillText(str, x, y);
+  }
+  function pellet(p) {
+    const cx = p.x*cell + cell/2, cy = p.y*cell + cell/2, r = cell*0.32; ctx.fillStyle = INK;
+    ctx.fillRect(cx - r, cy - r/3, r*2, r*2/3); ctx.fillRect(cx - r/3, cy - r, r*2/3, r*2);
+  }
+  function bug(p) {                                  // bonus "critter" – flashes like the original
+    if (!blink && bonusLeft < 2000) return;
+    const x = p.x*cell, y = p.y*cell, u = cell/5; ctx.fillStyle = INK;
+    ctx.fillRect(x + u, y + u*2, u*3, u*2); ctx.fillRect(x + u*2, y + u, u, u*4);
+    ctx.fillRect(x, y + u, u, u); ctx.fillRect(x + u*4, y + u, u, u);
+    ctx.fillRect(x, y + u*4, u, u); ctx.fillRect(x + u*4, y + u*4, u, u);
+  }
+  function panel(h) {
+    ctx.fillStyle = 'rgba(155,183,122,.9)'; ctx.fillRect(cell*2, cell*4, cv.width - cell*4, cell*h);
+    ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.strokeRect(cell*2, cell*4, cv.width - cell*4, cell*h);
+  }
+  // ----- Snake II dot-matrix rendering -----
+  const gapPx = () => Math.max(1, Math.round(dp * 0.12));     // thin: the gap is only the background showing between two lit pixels
+  function dot(x, y) {
+    if (x < 0 || y < 0 || x >= DW || y >= DH) return;
+    const g = gapPx(); ctx.fillRect(x * dp, y * dp, dp - g, dp - g);
+  }
+  function text5(str, x, y) {
+    for (const ch of str) {
+      const gl = FONT[ch] || FONT[' '];
+      for (let r = 0; r < 7; r++) for (let c = 0; c < 5; c++) if (gl[r][c] === '1') dot(x + c, y + r);
+      x += 6;
+    }
+  }
+  function text3(str, x, y) {                        // small 3x5 digits for the score
+    for (const ch of str) { const gl = FONT3[ch]; for (let r = 0; r < 5; r++) for (let c = 0; c < 3; c++) if (gl[r][c] === '1') dot(x + c, y + r); x += 4; }
+  }
+  const cx5 = (str) => Math.floor((DW - (str.length * 6 - 1)) / 2);
+  function tile(rows, ox, oy) { rows.forEach((r, ry) => { for (let c = 0; c < r.length; c++) if (r[c] === '#') dot(ox + c, oy + ry); }); }
+  const T_WALL = ['#####', '#####', '#####', '#####'], T_FOOD = ['.##.', '#..#', '#..#', '.##.'];
+  const MOUSE = ['#..#..', '#.####', '.#####', '..#.#.'];                // a little mouse (6x4 dots): curly tail, ear, snout; facing right
+  function mouseTile(face, step) {
+    const rows = MOUSE.slice(); if (step) rows[3] = '.#..#.';              // the feet scurry
+    return face ? rows : rows.map(r => [...r].reverse().join(''));
+  }
+  const T_HEAD = {right: ['.##.', '##.#', '####', '.##.'], left: ['.##.', '#.##', '####', '.##.'], up: ['.##.', '#..#', '####', '.##.'], down: ['.##.', '####', '#..#', '.##.']};
+  const T_OPEN = {right: ['.##.', '##.#', '##..', '.##.'], left: ['.##.', '#.##', '..##', '.##.'], up: ['#..#', '#..#', '####', '.##.'], down: ['.##.', '####', '#..#', '#..#']};
+  function mouthOpen() {                            // food (or the bonus critter) within two cells ahead, or just eaten
+    if (mouthTicks > 0) return true;
+    const [dx, dy] = DIRS[dir];
+    for (let st = 1; st <= 2; st++) {
+      const x = (snake[0].x + dx * st + COLS) % COLS, y = (snake[0].y + dy * st + ROWS) % ROWS;
+      if ((food && food.x === x && food.y === y) || (bonus && bonus.x === x && bonus.y === y)) return true;
+    }
+    return false;
+  }
+  const T_BLOB = ['.##.', '####', '####', '.##.'];
+  const T_FOOD1 = ['....', '.##.', '.##.', '....'];
+  let snakeCv = null, wallCv = null, wallDots = null;
+  function buildWallDots() {                        // the maze as thin lines (2 dots) through the centres of the wall cells
+    wallCv = wallCv || document.createElement('canvas'); wallCv.width = DW; wallCv.height = DH;
+    const c = wallCv.getContext('2d', {willReadFrequently: true});
+    c.clearRect(0, 0, DW, DH); c.fillStyle = c.strokeStyle = '#000'; c.lineWidth = 2; c.lineCap = 'butt';
+    const cx = (i) => GX + i * CW + 2, cy = (j) => GY + j * CH + 2;
+    for (let j = 0; j < ROWS; j++) for (let i = 0; i < COLS; i++) {
+      if (!walls[j][i]) continue;
+      c.fillRect(cx(i) - 1, cy(j) - 1, 2, 2);
+      for (const [di, dj] of [[1, 0], [0, 1], [1, 1], [-1, 1]]) {
+        const a = i + di, b = j + dj;
+        if (!(a >= 0 && a < COLS && b < ROWS && walls[b][a])) continue;
+        if (di !== 0 && dj !== 0 && (walls[j][a] || walls[b][i])) continue;      // a diagonal only where no straight link exists, so junctions stay 2 dots thick
+        if (di < 0) { const main = (x, y) => !!((walls[y + 1] && walls[y + 1][x + 1]) || (walls[y - 1] && walls[y - 1][x - 1])); if (main(i, j) || main(a, b)) continue; }   // no cross-links between parallel diagonals
+        c.beginPath(); c.moveTo(cx(i), cy(j)); c.lineTo(cx(a), cy(b)); c.stroke();
+      }
+    }
+    const px = c.getImageData(0, 0, DW, DH).data; wallDots = [];
+    for (let y = 0; y < DH; y++) for (let x = 0; x < DW; x++) if (px[(y * DW + x) * 4 + 3] > 120) wallDots.push([x, y]);
+  }
+  function drawSnake() {
+    // body = a 2-dot-thick path through the cell centres. Snake II: round joins + a blank dot every few pixels (stitched look).
+    // Snake I: one solid, fully connected chain with square corners.
+    const round = game === 2, [sx, sy] = deathShift;
+    snakeCv = snakeCv || document.createElement('canvas'); snakeCv.width = DW; snakeCv.height = DH;
+    const c = snakeCv.getContext('2d', {willReadFrequently: true});
+    c.clearRect(0, 0, DW, DH); c.strokeStyle = c.fillStyle = '#000'; c.lineWidth = 2;
+    c.lineJoin = round ? 'round' : 'miter'; c.lineCap = round ? 'round' : 'square';
+    const pt = (q) => [GX + q.x * CW + 2 + sx, GY + q.y * CH + 2 + sy];
+    const flush = (run) => {
+      if (run.length === 1) { c.beginPath(); if (round) c.arc(run[0][0], run[0][1], 1, 0, 6.2832); else c.rect(run[0][0] - 1, run[0][1] - 1, 2, 2); c.fill(); return; }
+      c.beginPath(); c.moveTo(run[0][0], run[0][1]);
+      if (round) for (let i = 1; i < run.length - 1; i++) c.quadraticCurveTo(run[i][0], run[i][1], (run[i][0] + run[i + 1][0]) / 2, (run[i][1] + run[i + 1][1]) / 2);   // curve through every turn
+      else for (let i = 1; i < run.length - 1; i++) c.lineTo(run[i][0], run[i][1]);
+      c.lineTo(run[run.length - 1][0], run[run.length - 1][1]); c.stroke();
+    };
+    let run = [pt(snake[0])];
+    for (let i = 1; i < snake.length; i++) {
+      const wrapped = Math.abs(snake[i].x - snake[i - 1].x) > 1 || Math.abs(snake[i].y - snake[i - 1].y) > 1;   // crossed a screen edge
+      if (wrapped) { flush(run); run = []; }
+      run.push(pt(snake[i]));
+    }
+    flush(run);
+    const px = c.getImageData(0, 0, DW, DH).data, hx = GX + snake[0].x * CW + sx, hy = GY + snake[0].y * CH + sy;
+    for (let y = 0; y < DH; y++) for (let x = 0; x < DW; x++) {
+      if (round && x >= hx && x < hx + CW && y >= hy && y < hy + CH) continue;       // the head tile owns its own cell, so the eye and mouth stay open
+      if (px[(y * DW + x) * 4 + 3] > 120 && (!round || (x + y) % 3 !== 2)) dot(x, y);
+    }
+    bulges.forEach(b => { if (b > 0 && b < snake.length) tile(T_BLOB, GX + snake[b].x * CW + sx, GY + snake[b].y * CH + sy); });   // swallowed food shows as a swelling
+    if (round) tile((mouthOpen() ? T_OPEN : T_HEAD)[dir], hx, hy);
+  }
+  function frame(x0, y0, x1, y1) { for (let x = x0; x <= x1; x++) { dot(x, y0); dot(x, y1); } for (let y = y0; y <= y1; y++) { dot(x0, y); dot(x1, y); } }
+  let splashBits = null;
+  function splashDots() {                           // the title art, decoded once: [width, height, bit array]
+    if (splashBits) return splashBits;
+    const [w, h, b64] = SPLASH.split(','), bin = atob(b64), bits = new Uint8Array(w * h);
+    for (let i = 0; i < w * h; i++) bits[i] = (bin.charCodeAt(i >> 3) >> (7 - (i & 7))) & 1;
+    return (splashBits = [+w, +h, bits]);
+  }
+  const ANT6 = ['#...#', '##.##', '.###.', '..#..', '..#..', '..#..'];
+  const BAT7 = ['..#..', '#####', '#...#', '#...#', '#...#', '#...#', '#####'];
+  const MW = [2, 3, 4, 5];                           // 4 bars max; each one a little wider than the one below
+  function drawMeters() {                           // reception (left) and battery (right): long bars up the side, icon about 3/4 of the way down. Menu screens only.
+    const N = MW.length, ls = segs(sigLevel, N), rs = segs(batLevel, N), segH = 11, bottom = Math.round(DH * 0.75) - 3;
+    tile(ANT6, 1, Math.round(DH * 0.75)); tile(BAT7, DW - 6, Math.round(DH * 0.75));
+    for (let b = 0; b < N; b++) {
+      const yb = bottom - b * (segH + 1);
+      for (let y = yb - segH + 1; y <= yb; y++) {
+        dot(1, y); dot(DW - 2, y);                                 // a thin spine keeps every bar running the full length
+        if (b < ls) for (let i = 1; i < MW[b]; i++) dot(1 + i, y);            // lit width = signal strength
+        if (b < rs) for (let i = 1; i < MW[b]; i++) dot(DW - 2 - i, y);       // lit width = battery level
+      }
+    }
+  }
+  function drawG2() {
+    ctx.clearRect(0, 0, cv.width, cv.height); ctx.fillStyle = INK;
+    if (state === 'splash' || state === 'title') drawMeters();   // the meters belong to the menu screens; they disappear once the game starts
+    if (state === 'splash') {
+      const [aw, ah, bits] = splashDots();                         // the art is a finer LCD dot grid (about 3/4 of the game's dot size)
+      const pitch = Math.max(2, Math.round(dp * 0.72)), ds = pitch - Math.max(1, Math.round(pitch * 0.14));
+      const x0 = Math.round((cv.width - aw * pitch) / 2), y0 = Math.round(8 * dp);
+      for (let j = 0; j < ah; j++) for (let i = 0; i < aw; i++) if (bits[j * aw + i]) ctx.fillRect(x0 + i * pitch, y0 + j * pitch, ds, ds);
+      const pr = retro ? 'PRESS SELECT' : 'PRESS OK'; if (blink) text5(pr, cx5(pr), 60);
+      return;
+    }
+    if (state === 'title') {
+      const ttl = game === 2 ? 'SNAKE II' : 'SNAKE'; text5(ttl, cx5(ttl), 2); for (let x = 22; x < 82; x++) dot(x, 11);
+      const mark = (r) => (row === r ? '>' : ' ');
+      const line = (r, y, label, val) => { text5(mark(r) + ' ' + label, 11, y); text5('<', 57, y); text5(val, 71 - Math.floor((val.length * 6 - 1) / 2), y); text5('>', 85, y); };
+      if (game === 2) { line(0, 15, 'GAME', 'II'); line(1, 25, 'LEVEL', String(level)); line(2, 35, 'SPEED', String(speed)); line(3, 45, 'WALLS', edge[game] ? 'ON' : 'OFF'); }
+      else { line(0, 20, 'GAME', 'I'); line(2, 31, 'SPEED', String(speed)); line(3, 42, 'WALLS', edge[game] ? 'ON' : 'OFF'); }
+      const hs = 'HI ' + pad4(curHi()); text5(hs, cx5(hs), 56);
+      return;
+    }
+    const fx0 = GX - 2, fx1 = GX + COLS * CW, mid = DW >> 1;               // the box runs edge to edge
+    text3(pad4(score), fx0 + 2, 2);                                                                 // score: top-left
+    if (game === 2) { tile(mouseTile(true, false), fx1 - 15, 2); text3(String(Math.min(mice, 99)).padStart(2, '0'), fx1 - 8, 2); }   // mice collected: top-right
+    if (bonus) { const w = Math.round(14 * Math.max(0, bonusLeft) / BONUS_MS); frame(mid - 9, 2, mid + 8, 6); for (let x = 0; x < w; x++) for (let y = 3; y <= 5; y++) dot(mid - 7 + x, y); }
+    frame(fx0, 8, fx1, 67);                                          // the box; the cells sit 1 dot inside it
+    const ox = (x) => GX + x * CW, oy = (y) => GY + y * CH;
+    if (!wallDots) buildWallDots();
+    for (const [wx, wy] of wallDots) dot(wx, wy);                                   // maze walls: 2 dots thick at most
+    if (game === 2) {
+      tile(T_FOOD, ox(food.x), oy(food.y));
+      if (bonus && (blink || bonusLeft >= 2000)) tile(mouseTile(mouseFace, blink), Math.max(GX, Math.min(ox(bonus.x), GX + COLS * CW - 6)), oy(bonus.y));   // keep the wider sprite inside the border
+      drawSnake();
+    } else {                                                          // Snake I: one continuous chain
+      tile(T_FOOD1, ox(food.x), oy(food.y));
+      drawSnake();
+    }
+    if (state === 'pause' || state === 'over') {
+      const px0 = (DW - 64) >> 1; ctx.clearRect(px0 * dp, 21 * dp, 64 * dp, 36 * dp); ctx.fillStyle = INK; frame(px0, 21, px0 + 63, 56);
+      if (state === 'pause') { text5('PAUSED', cx5('PAUSED'), retro ? 30 : 35); if (retro) text5('C=MENU', cx5('C=MENU'), 40); }
+      else {
+        const g2 = game === 2, t = 'SCORE ' + pad4(score);
+        text5('GAME OVER', cx5('GAME OVER'), g2 ? 24 : 27); text5(t, cx5(t), g2 ? 33 : 37);
+        if (g2) { const m = 'MICE ' + mice; text5(m, cx5(m), 42); }
+        if (blink) text5('PRESS OK', cx5('PRESS OK'), g2 ? 49 : 46);
+      }
+    }
+  }
+  function draw() {
+    const pl = state === 'pause' ? '▶ RESUME' : '❚❚ PAUSE'; if (pauseBtn.textContent !== pl) pauseBtn.textContent = pl;
+    if (dots()) return drawG2();
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    ctx.fillStyle = GHOST;
+    for (let x = 0; x < COLS; x++) for (let y = 0; y < ROWS; y++) ctx.fillRect(x*cell + cell/2 - 1, y*cell + cell/2 - 1, 1, 1);
+
+    if (state === 'title') {
+      text(game === 2 ? 'SNAKE II' : 'SNAKE', cell*2.9, cell*2.2);
+      for (let i = 0; i < 7; i++) block(7 + i, 4);
+      const mark = (r) => (row === r ? '\u25B8' : ' ');
+      let y = 6.8;
+      text(`${mark(0)} GAME   \u25C2 ${game === 2 ? 'II' : 'I '} \u25B8`, cell*y, cell*1.1); y += 1.5;
+      if (game === 2) { text(`${mark(1)} LEVEL  \u25C2 ${level} \u25B8`, cell*y, cell*1.1); y += 1.5; }
+      text(`${mark(2)} SPEED  \u25C2 ${speed} \u25B8`, cell*y, cell*1.1); y += 1.5;
+      text(`${mark(3)} WALLS  \u25C2 ${edge[game] ? 'ON ' : 'OFF'} \u25B8`, cell*y, cell*1.1);
+      if (blink) text('PRESS OK TO START', cell*12.8, cell*0.85);
+      return;
+    }
+    for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) if (walls[y][x]) block(x, y);
+    pellet(food); if (bonus) bug(bonus);
+    snake.forEach(s => block(s.x, s.y));
+    if (state === 'pause') { panel(5); text('PAUSED', cell*6.9, cell*1.7); if (blink) text('PRESS OK', cell*8.4, cell*0.9); }
+    if (state === 'over') {
+      panel(6); text('GAME OVER', cell*6.6, cell*1.6); text('SCORE ' + pad4(score), cell*8.2, cell*1.1);
+      if (blink) text('PRESS ANY KEY', cell*9.4, cell*0.8);
+    }
+  }
+  setInterval(() => { blink ^= 1; if (state !== 'play') draw(); else if (bonus) draw(); }, 400);
+
+  walls = buildWalls(level); snake = []; food = {x:-1,y:-1}; score = 0; state = 'splash'; applyTheme(); hud(); setColor(rcolor); applyRetro(retro); initDeviceStatus();
+})();
+</script>
+
+</body>
+</html>
