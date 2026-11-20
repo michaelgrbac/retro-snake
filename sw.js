@@ -1,6 +1,6 @@
 // Retro Snake service worker: saves the game on the player's device so it also opens offline.
 // To ship an update, change VERSION. Players get the new version the next time they open the game online.
-const VERSION = 'retro-snake-v1';
+const VERSION = 'retro-snake-v2';
 const FILES = [
   "./",
   "index.html",
