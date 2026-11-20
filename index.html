@@ -6,6 +6,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Snake">
 <meta name="theme-color" content="#2b3a2b">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-180.png">
 <title>Snake</title>
 <style>
   :root{--lcd:#9bb77a;--ink:#1c2b1a;--ghost:#8aa86b;--body:#2b3a2b}
@@ -730,6 +733,12 @@
 
   walls = buildWalls(level); snake = []; food = {x:-1,y:-1}; score = 0; state = 'splash'; applyTheme(); hud(); setColor(rcolor); applyRetro(retro); initDeviceStatus();
 })();
+</script>
+<script>
+// Offline support: save the game on the player's device (only where service workers exist; harmless elsewhere).
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+  addEventListener('load', () => { try { navigator.serviceWorker.register('sw.js').catch(() => {}); } catch (e) {} });
+}
 </script>
 
 </body>
